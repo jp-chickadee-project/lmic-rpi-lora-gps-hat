@@ -37,6 +37,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+//////////////////////
+// GLOBAL VARIABLES //
+//////////////////////
+
+char customData[1000][11];
+int size;
 
 //////////////////////////////////////////////////
 // CONFIGURATION (FOR APPLICATION CALLBACKS BELOW)
@@ -46,10 +52,11 @@
 static const u1_t APPEUI[8]  = { 0x16, 0x77, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
 
 // unique device ID (LSBF)
-static const u1_t DEVEUI[8]  = { 0x98, 0x21, 0xC3, 0x28, 0xD1, 0xE4, 0x4A, 0x00 };
+static const u1_t DEVEUI[8]  = { 0x4B, 0x7B, 0xAB, 0x3B, 0x66, 0xDF, 0x99, 0x00 };
 
 // device-specific AES key (derived from device EUI)
-static const u1_t DEVKEY[16] = { 0x7B, 0x55, 0x98, 0x40, 0xB6, 0x4A, 0x45, 0x0A, 0x84, 0x40, 0x3B, 0x0B, 0xF1, 0x6C, 0x6F, 0x26 };
+static const u1_t DEVKEY[16] = { 0x63, 0xD2, 0xCB, 0xC4, 0x31, 0x3D, 0xD8, 0x2F, 0x4A, 0xF8, 0xED, 0x99, 0x65, 0xA0, 0x49, 0xF7 };
+
 
 
 //////////////////////////////////////////////////
@@ -78,7 +85,36 @@ void os_getDevKey (u1_t* buf) {
 
 // initial job
 static void initfunc (osjob_t* j) {
-    // reset MAC state
+    // Load log.out into customData[]
+    // immediately prepare next transmissio
+    static const char* fn = "/home/pi/MasterCode/log.out";
+    int fd = open(fn, O_RDWR);
+    if(fd < 0) {
+	    perror(fn);
+	    exit(EXIT_FAILURE);
+    }
+    char buffer[11];
+    int linecount = 0;
+    int rc;
+    do {
+	    rc = read(fd, &customData[linecount], 11);
+	    if (rc < 0) {
+		    perror("bad stuff.");
+	            exit(EXIT_FAILURE);
+        	}
+	    customData[linecount][rc-1] = 0;
+	    debug_str(customData[linecount]);
+	    linecount++;
+    } while (rc == 11);
+    // reset MAC stat
+    close(fd);
+    size = linecount - 2;
+    debug_str("///DATA HERE//////");
+    for(int i = 0; i <= size; i++){
+    	debug_str(customData[i]);
+    }
+    printf("%d\n",size);
+    debug_str("///DATA HERE//////");
     LMIC_reset();
     // start joining
     LMIC_startJoining();
@@ -109,6 +145,10 @@ int main () {
 
 void onEvent (ev_t ev) {
     debug_event(ev);
+    if(size < 0){
+	    debug_str("/////////////FINISHED///////////");
+	    exit(0);
+    }
     
     switch(ev) {
         
@@ -122,60 +162,21 @@ void onEvent (ev_t ev) {
         if(LMIC.dataLen) { // data received in rx slot after tx
             debug_buf(LMIC.frame+LMIC.dataBeg, LMIC.dataLen);
         }
-        static const char* fn = "/home/pi/MasterCode/log.out";
-        int fd;
     tx:
-        // immediately prepare next transmission
-        fd = open(fn, O_RDWR);
-        if(fd < 0) {
-            perror(fn);
-            exit(EXIT_FAILURE);
-        }
-        
-        char data[10];
-        char buffer[10];
-        int rc = read(fd, &data, 10);
-        if (rc < 0) {
-            perror("bad stuff.");
-            exit(EXIT_FAILURE);
-        }
-        /* // Found at: https://codereview.stackexchange.com/questions/156477/c-program-to-count-number-of-lines-in-a-file
-         while ((bytes = fread(buffer, 1, sizeof(buffer) - 1, fd))) {
-         lastchar = buffer[bytes - 1];
-         for (char *c = buffer; (c = memchr(c, '\n', bytes - (c - buffer))); c++) {
-         lines++;
-         }
-         }
-         */
-        close(fd);
-        debug_str("#############################################################");
+        /*debug_str("#############################################################");
         debug_str(data);
-        debug_str("#############################################################");
-        
-        for(int i =0; i < strlen(data); i++) {
-            //LMIC.frame[i] = sprintf(buffer, "%x", data[i]);
-            
-            LMIC.frame[i] = data[i];
+	*/
+        //debug_str("#############################################################");
+       
+        for(int i = 0; i < 10; i++) {
+            LMIC.frame[i] = customData[size][i];
+	    //debug_str(&customData[size][i])
+	    //debug_str("/////////////");
+	    //debug_str(&LMIC.frame[i]);
         }
-        
-        /*
-         LMIC.frame[0] = 0x0;
-         LMIC.frame[1] = 0x1;
-         LMIC.frame[2] = 0x1;
-         LMIC.frame[3] = 0x0;
-         LMIC.frame[4] = 0x1;
-         LMIC.frame[5] = 0x6;
-         LMIC.frame[6] = 0xa;
-         LMIC.frame[7] = 0x3;
-         LMIC.frame[8] = 0x2;
-         LMIC.frame[9] = 0xf;
-         */
-        
-        //LMIC.frame[0] = LMIC.snr;
-        // schedule transmission (port 1, datalen 1, no ack requested)
         LMIC_setTxData2(1, LMIC.frame, 10, 1);
         // (will be sent as soon as duty cycle permits)
+	size--;
         break;
     }
 }
-
