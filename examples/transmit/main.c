@@ -43,7 +43,7 @@
 
 char customData[1000][11];
 int size;
-
+static const char* fn;
 //////////////////////////////////////////////////
 // CONFIGURATION (FOR APPLICATION CALLBACKS BELOW)
 //////////////////////////////////////////////////
@@ -86,7 +86,7 @@ void os_getDevKey (u1_t* buf) {
 static void initfunc (osjob_t* j) {
     // Load log.out into customData[]
     // immediately prepare next transmissio
-    static const char* fn = "/home/pi/MasterCode/log.out";
+    fn = "/home/pi/MasterCode/log.out";
     int fd = open(fn, O_RDWR);
     if(fd < 0) {
 	    perror(fn);
@@ -108,12 +108,6 @@ static void initfunc (osjob_t* j) {
     // reset MAC stat
     close(fd);
     size = linecount - 2;
-    debug_str("///DATA HERE//////");
-    for(int i = 0; i <= size; i++){
-    	debug_str(customData[i]);
-    }
-    printf("%d\n",size);
-    debug_str("///DATA HERE//////");
     LMIC_reset();
     // start joining
     LMIC_startJoining();
@@ -146,6 +140,10 @@ void onEvent (ev_t ev) {
     debug_event(ev);
     if(size < 0){
 	    debug_str("/////////////FINISHED///////////");
+	    int removedStatus = remove(fn); //start/transmit.out delete file
+	    if(removedStatus != 0){
+	    	perror("Could not delete log.out");
+	    } //end/transmit.out delete file
 	    exit(0);
     }
     
@@ -162,18 +160,10 @@ void onEvent (ev_t ev) {
             debug_buf(LMIC.frame+LMIC.dataBeg, LMIC.dataLen);
         }
     tx:
-        /*debug_str("#############################################################");
-        debug_str(data);
-	*/
-        //debug_str("#############################################################");
-       
-        for(int i = 0; i < 10; i++) {
+        for(int i = 0; i < 10; i++) { //start/loading LMIC.frame and sending
             LMIC.frame[i] = customData[size][i];
-	    //debug_str(&customData[size][i])
-	    //debug_str("/////////////");
-	    //debug_str(&LMIC.frame[i]);
         }
-        LMIC_setTxData2(1, LMIC.frame, 10, 1);
+        LMIC_setTxData2(1, LMIC.frame, 10, 1); //end/loading LMIC.frame and sending
         // (will be sent as soon as duty cycle permits)
 	size--;
         break;
