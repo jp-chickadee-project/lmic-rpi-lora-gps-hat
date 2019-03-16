@@ -87,7 +87,7 @@ void os_getDevKey (u1_t* buf) {
 static void initfunc (osjob_t* j) {
     // Load log.out into customData[]
     // immediately prepare next transmissio
-    fn = "/home/pi/MasterCode/log.out";
+    fn = "/home/pi/MasterCode/transmit/log.out";
     int fd = open(fn, O_RDWR);
     if(fd < 0) {
 	    perror(fn);
