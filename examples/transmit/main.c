@@ -39,10 +39,11 @@
 //////////////////////
 // GLOBAL VARIABLES //
 //////////////////////
-#define LINESIZE 11 // LINESIZE = [hexa]digit count + 1
+#define LINESIZE 21 // LINESIZE = [hexa]digit count + 1
 char customData[1000][LINESIZE];
 int size;
-static const char* fn;
+const char*  onFile;
+static char* fn;
 
 //////////////////////////////////////////////////
 // CONFIGURATION (FOR APPLICATION CALLBACKS BELOW)
@@ -55,6 +56,8 @@ static const u1_t DEVEUI[8]  = { 0x4B, 0x7B, 0xAB, 0x3B, 0x66, 0xDF, 0x99, 0x00 
 
 // device-specific AES key (derived from device EUI)
 static const u1_t DEVKEY[16] = { 0x63, 0xD2, 0xCB, 0xC4, 0x31, 0x3D, 0xD8, 0x2F, 0x4A, 0xF8, 0xED, 0x99, 0x65, 0xA0, 0x49, 0xF7 };
+
+static const int HIGHEST_LOG_INDEX = 10;
 
 //////////////////////////////////////////////////
 // APPLICATION CALLBACKS
@@ -74,17 +77,39 @@ void os_getDevKey (u1_t* buf) {
     memcpy(buf, DEVKEY, 16);
 }
 
+void determineLogFile() {
+    fn = calloc(256, 1);
+    for (int index = 0; index <= HIGHEST_LOG_INDEX; ++index) {
+      sprintf(fn, "/home/pi/MasterCode/transmit/log%d.out", index); 
+
+      int fd = open(fn, O_RDONLY);
+
+      if (fd >= 0) {
+	    close(fd);
+	    debug_str(fn);
+	    return;
+      }		
+    }
+
+    //No more log files!
+    int removedStatus = remove(onFile);
+    if(removedStatus != 0){
+	    perror("Could not delete onFile");
+    }
+    exit(0);
+}
+
 //////////////////////////////////////////////////
 // MAIN - INITIALIZATION AND STARTUP
 //////////////////////////////////////////////////
 // initial job
 static void initfunc (osjob_t* j) {
     // Load log.out into customData[]
-    fn = "/home/pi/MasterCode/transmit/log.out";
+    determineLogFile();
     char buffer[LINESIZE];
     int linecount = 0;
     int rc;
-    int fd = open(fn, O_RDWR);
+    int fd = open(fn, O_RDONLY);
 
     if(fd < 0) {
 	    perror(fn);
@@ -92,8 +117,9 @@ static void initfunc (osjob_t* j) {
     }
     do {
 	    rc = read(fd, &customData[linecount], LINESIZE);
+	    debug_str("*rc: "+rc);
 	    if (rc < 0) {
-		    perror("bad stuff.");
+	    perror("bad stuff.");
 	            exit(EXIT_FAILURE);
         	}
 	    customData[linecount][rc-1] = 0;
@@ -101,7 +127,12 @@ static void initfunc (osjob_t* j) {
 	    linecount++;
     } while (rc == LINESIZE);
     close(fd);
-    size = linecount - 2;
+    if (linecount == 2) {
+	    size = 1;
+    } else {
+    	    size = linecount - 2;
+    }
+
     // reset MAC stat
     LMIC_reset();
     // start joining
@@ -111,6 +142,12 @@ static void initfunc (osjob_t* j) {
 
 // application entry point
 int main () {
+      onFile = "/home/pi/MasterCode/on.txt";
+      int onFileFD = open(onFile, O_CREAT);
+      if(onFileFD < 0){
+	      exit(0);
+      }
+
     osjob_t initjob;
     // initialize runtime env
     os_init();
@@ -133,7 +170,9 @@ void onEvent (ev_t ev) {
 	    if(removedStatus != 0){
 	    	perror("Could not delete log.out");
 	    } //end/transmit.out delete file
-	    exit(0);
+	    free(fn);
+	    initfunc();
+	    //exit(0);
     }
     
     switch(ev) {
