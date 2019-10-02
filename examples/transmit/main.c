@@ -171,8 +171,12 @@ void onEvent (ev_t ev) {
 	    	perror("Could not delete log.out");
 	    } //end/transmit.out delete file
 	    free(fn);
-	    initfunc();
-	    //exit(0);
+	    removedStatus = remove("/home/pi/MasterCode/on.txt"); //start/transmit.out delete file
+	    if(removedStatus != 0){
+	    	perror("Could not delete on.txt.");
+	    } //end/transmit.out delete file
+	    //initfunc();
+	    exit(0);
     }
     
     switch(ev) {
